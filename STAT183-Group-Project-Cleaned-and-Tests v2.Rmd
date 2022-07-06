@@ -1,0 +1,290 @@
+---
+title: "STAT183 Group Project Final Analysis"
+author: "graym004@ucr.edu, vnguy278@ucr.edu, saure001@ucr.edu, jorte030@ucr.edu, ckulk002@ucr.edu"
+date: "5/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggpubr)
+library(readxl)
+library(magrittr)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(purrr)
+library(pscl)
+library(InformationValue)
+```
+
+```{r}
+### IMPORTANT:
+### UPLOAD THE FINAL EXCEL SHEET DR. XU PROVIDED
+### includes the two new columns
+data <- read_excel("University Honors Students (Fall 2017 - Fall 2021)(Final) with two new columns.xlsx") 
+```
+
+
+### Cleaning and Processing Data
+
+```{r}
+# Modify the data set to rename N/A or missing values from specific columns.
+data %<>%
+  mutate_at(vars(`First Generation`, `Low Income`), ~replace_na(., "N")) %>%
+    mutate_at(vars(`Capstone Project Completion`), ~replace_na(., "No")) %>%
+      mutate_at(vars(`Gender`,`Admit Type`), ~replace_na(., "Others"))
+
+# Change capstone completion to binary variable
+data$`Capstone Project Completion` <- ifelse(data$`Capstone Project Completion` == "Yes", 1, 0)
+
+# Fourth, Fifth, and Sixth Years Students in the Admitted Honors Cohort be combined into a new variable, “Other”
+data$`Admitted Honors Cohort`[data$`Admitted Honors Cohort` == "New Second Year (Waitlist)"] <- "Second Year"
+data$`Admitted Honors Cohort`[data$`Admitted Honors Cohort` == "New Second Year"] <- "Second Year"
+data$`Admitted Honors Cohort`[data$`Admitted Honors Cohort` == "New Third Year"] <- "Third Year"
+data$`Admitted Honors Cohort`[data$`Admitted Honors Cohort` == "Fourth Year" | data$`Admitted Honors Cohort` == "Fifth Year" | data$`Admitted Honors Cohort` == "Sixth Year"] <- "Others"
+
+
+#  PP and ED be combined as “Others” under Colleges due to small sample sizes
+data$`College`[data$`College` == "PP" | data$`College` == "ED"] <- "Others"
+
+# disregard students’ majors and merely use their colleges
+data$`Major` <- NULL
+
+# IPEDS Ethnicity of Native Hawaiian or Pacific Islander be combined with Unknown to make an Other category due to small sample sizes
+data$`IPEDS Ethnicity`[data$`IPEDS Ethnicity` == "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER" | data$`IPEDS Ethnicity` == "UNKNOWN"] <- "OTHERS"
+
+# Any admit type beginning with “T” can be consolidated into a “Transfer” category, and any admit type beginning with “F” can be consolidated into a “Freshman” category. If there are any outlying admit types, they can be consolidated into an “Other” category. 
+data$`Admit Type` <- sub("T.*", "T",data$`Admit Type`)
+data$`Admit Type` <- sub("F.*", "F",data$`Admit Type`)
+data$`Admit Type` <- sub("B.*", "Others",data$`Admit Type`)
+data$`Admit Type` <- sub("A.*", "Others",data$`Admit Type`)
+
+data
+```
+
+
+### Descriptive Analysis: Tables
+
+```{r}
+print("Number of Students Completed Capstone by Ethnicity:")
+addmargins(table(data$`IPEDS Ethnicity`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Gender:")
+addmargins(table(data$`Gender`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Low Income:")
+addmargins(table(data$`Low Income`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by First Generation:")
+addmargins(table(data$`First Generation`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Admit Type:")
+addmargins(table(data$`Admit Type`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by College:")
+addmargins(table(data$`College`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by UCR Entry Action:")
+addmargins(table(data$`UCR Entry Action`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Admitted Honors Cohort:")
+addmargins(table(data$`Admitted Honors Cohort`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Permanent Region:")
+addmargins(table(data$`Permanent.Region`, data$`Capstone Project Completion`))
+cat("\n")
+
+print("Number of Students Completed Capstone by Permanent County:")
+addmargins(table(data$`Permanent.County`, data$`Capstone Project Completion`))
+cat("\n")
+
+```
+
+### Descriptive Analysis: Visualization
+
+```{r}
+###By Admitted Honors Cohort:
+data %>%
+  dplyr::count(`Admitted Honors Cohort`,`Capstone Project Completion`) %>%
+  group_by(`Admitted Honors Cohort`) %>%
+  ggplot(aes(reorder(`Admitted Honors Cohort`, -n),n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by Admitted Honors Cohort",x="Admitted Honors Cohort",y="Frequency of Students")
+
+
+###By UCR Entry Action:
+data %>%
+  dplyr::count(`UCR Entry Action`,`Capstone Project Completion`) %>%
+  group_by(`UCR Entry Action`) %>%
+  ggplot(aes(reorder(`UCR Entry Action`, -n),n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by UCR Entry Action",x="UCR Entry Action",y="Frequency of Students")
+
+###By College:
+data %>%
+  dplyr::count(`College`,`Capstone Project Completion`) %>%
+  group_by(`College`) %>%
+  ggplot(aes(reorder(`College`, -n),n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by College",x="College",y="Frequency of Students")
+
+###By Income
+data %>%
+  dplyr::count(`Low Income`,`Capstone Project Completion`) %>%
+  group_by(`Low Income`) %>%
+  ggplot(aes(`Low Income`,n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by Income",y="Frequency of Students")
+
+###By First Generation status
+data %>%
+  dplyr::count(`First Generation`,`Capstone Project Completion`) %>%
+  group_by(`First Generation`) %>%
+  ggplot(aes(`First Generation`,n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by First Generation status",y="Frequency of Students")
+
+###By Ethnicity
+data %>%
+  dplyr::count(`IPEDS Ethnicity`,`Capstone Project Completion`) %>%
+  group_by(`IPEDS Ethnicity`) %>%
+  ggplot(aes(n,reorder(`IPEDS Ethnicity`, n),fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by Ethnicity",x="Frequency of Students",y="Ethnicity")
+
+###By Gender
+data %>%
+  dplyr::count(`Gender`,`Capstone Project Completion`) %>%
+  group_by(`Gender`) %>%
+  ggplot(aes(`Gender`,n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by Gender", y="Frequency of Students")
+
+###By Admit Type
+data %>%
+  dplyr::count(`Admit Type`,`Capstone Project Completion`) %>%
+  group_by(`Admit Type`) %>%
+  ggplot(aes(reorder(`Admit Type`, n),n,n,fill=factor(`Capstone Project Completion`),label = n)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3.5, position = position_stack(vjust = 0.5),colour = "white") +
+  scale_fill_manual(labels = c("No", "Yes"),values = c("0"="#E41A1C", "1"="#377EB8"),name = "Capstone Completed") +
+  labs(title="Barplot of Capstone Completion by Admit Type", y="Frequency of Students")
+
+### By Evaluated HS GPA
+##sum(is.na(data$`Evaluated High School GPA`))
+##number of na = 267
+gpa_viz<-ggplot(data, aes(x=`Evaluated High School GPA`)) + 
+  geom_histogram(color="white", fill="#377EB8")
+
+gpa_viz + labs(title="Histogram of Honor Students GPA",
+                   x="GPA",
+                   y="Number of Students")
+```
+
+### Data Analysis: 
+
+```{r}
+# series of chi-square tests for categorical data
+# tests if capstone completion and these variables have significant association with each other
+options(scipen=999)
+t1 <- chisq.test(data$`Capstone Project Completion`, data$`Gender`)
+t2 <- chisq.test(data$`Capstone Project Completion`, data$`IPEDS Ethnicity`)
+t3 <- chisq.test(data$`Capstone Project Completion`, data$`Low Income`)
+t4 <- chisq.test(data$`Capstone Project Completion`, data$`First Generation`)
+t5 <- chisq.test(data$`Capstone Project Completion`, data$`Admit Type`)
+t6 <- chisq.test(data$`Capstone Project Completion`, data$`College`)
+t7 <- chisq.test(data$`Capstone Project Completion`, data$`UCR Entry Action`)
+t8 <- chisq.test(data$`Capstone Project Completion`, data$`Admitted Honors Cohort`)
+t9 <- chisq.test(data$`Capstone Project Completion`, data$`Highlander Scholarship`)
+t10 <- chisq.test(data$`Capstone Project Completion`, data$`Chancellor's Scholarship`)
+t11 <- chisq.test(data$`Capstone Project Completion`, data$`Regents' Scholarship`)
+t12 <- chisq.test(data$`Capstone Project Completion`, data$`Permanent.Region`)
+t13 <- chisq.test(data$`Capstone Project Completion`, data$`Permanent.County`)
+
+tab <- map_df(list(t1,t2,t3,t4,t5,t6,t7,t8,t9,t10, t11, t12, t13), tidy)
+p1 <- tab[c("p.value")]
+variables <- c("Gender","IPEDS Ethnicity", "Low Income", "First Generation", "Admit Type", "College", "UCR Entry Action", "Admitted Honors Cohort", "Highlander Scholarship", "Chancellor's Scholarship", "Regents' Scholarship", "Permanent Region", "Permanent County")
+conclusion <- c("not significant","not significant","not significant","significant","not significant","not significant","not significant","significant", "not significant", "significant", "significant", "not significant","significant")
+cbind(variables,p1,conclusion)
+
+
+# separate students that completed capstone project and those who didn't
+
+capstone <- data %>%
+  filter(`Capstone Project Completion` == 1)
+
+no.capstone <- data %>%
+  filter(`Capstone Project Completion` == 0)
+
+
+# capstone <- data %>%
+#   filter(`Capstone Project Completion` == 1) %>%
+#   pull(`Evaluated High School GPA`)
+# no.capstone <- data %>%
+#   filter(`Capstone Project Completion` == 0) %>%
+#   pull(`Evaluated High School GPA`)
+
+## F test
+## H0: σ1 = σ2
+## Ha: σ1 ≠ σ2
+
+## two sample t test
+## H0: µ1 = µ2
+## Ha: µ1 ≠ µ2
+
+# two-sample independent t-test to test if the mean is significantly different between students who completed capstone projects and those who didn’t
+var.test(capstone$`Evaluated High School GPA`, no.capstone$`Evaluated High School GPA`, alternative = "two.sided") # reject H0 -> so σ1 ≠ σ2 
+t.test(capstone$`Evaluated High School GPA`, no.capstone$`Evaluated High School GPA`, alternative = "two.sided", var.equal = FALSE) # fail to reject H0 ->  average gpa of students who completed capstone project vs those who didn't are not significantly different 
+print("fail to reject H0 ->  average gpa of students who completed capstone project vs those who didn't are not significantly different")
+```
+
+
+```{r}
+
+set.seed(1)
+
+data[sapply(data, is.character)] <- lapply(data[sapply(data, is.character)], as.factor)
+sample <- sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.7,0.3))
+train <- data[sample, ]
+test <- data[!sample, ]  
+
+model <- glm(`Capstone Project Completion` ~ `Admitted Honors Cohort` + `First Generation`+ `Chancellor's Scholarship` + `Regents' Scholarship` + Permanent.County, family = "binomial", data = train)
+
+summary(model)
+
+model$xlevels[["Permanent.County"]] <- union(model$xlevels[["Permanent.County"]], levels(test$Permanent.County))
+
+pR2(model)["McFadden"]
+
+predicted <- predict(model, test, type = "response")
+predicted
+
+confusionMatrix(test$`Capstone Project Completion`, predicted)
+specificity(test$`Capstone Project Completion`, predicted)
+misClassError(test$`Capstone Project Completion`, predicted)
+plotROC(test$`Capstone Project Completion`, predicted)
+```
